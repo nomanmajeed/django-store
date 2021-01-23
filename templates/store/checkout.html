@@ -1,0 +1,264 @@
+{% extends 'store/main.html' %} {% load static %} {% block content %}
+
+<style>
+  /**
+ * The CSS shown here will not be introduced in the Quickstart guide, but shows
+ * how you can use CSS to style your Element's container.
+ */
+  .StripeElement {
+    box-sizing: border-box;
+
+    height: 40px;
+
+    padding: 10px 12px;
+
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background-color: white;
+
+    box-shadow: 0 1px 3px 0 #e6ebf1;
+    -webkit-transition: box-shadow 150ms ease;
+    transition: box-shadow 150ms ease;
+  }
+
+  .StripeElement--focus {
+    box-shadow: 0 1px 3px 0 #cfd7df;
+  }
+
+  .StripeElement--invalid {
+    border-color: #fa755a;
+  }
+
+  .StripeElement--webkit-autofill {
+    background-color: #fefde5 !important;
+  }
+</style>
+
+<!-- Stripe API JS  -->
+<script src="https://js.stripe.com/v3/"></script>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="box-element" id="form-wrapper">
+      <form id="form" action="{% url 'process_order' %}" method="post">
+        {% csrf_token %}
+        <div id="user-info">
+          <div class="form-field">
+            <input
+              required
+              class="form-control"
+              type="text"
+              name="name"
+              placeholder="Name.."
+            />
+          </div>
+          <div class="form-field">
+            <input
+              required
+              class="form-control"
+              type="email"
+              name="email"
+              placeholder="Email.."
+            />
+          </div>
+        </div>
+
+        <div id="shipping-info">
+          <hr />
+          <p>Shipping Information:</p>
+          <hr />
+          <div class="form-field">
+            <input
+              class="form-control"
+              type="text"
+              name="address"
+              placeholder="Address.."
+            />
+          </div>
+          <div class="form-field">
+            <input
+              class="form-control"
+              type="text"
+              name="city"
+              placeholder="City.."
+            />
+          </div>
+          <div class="form-field">
+            <input
+              class="form-control"
+              type="text"
+              name="state"
+              placeholder="State.."
+            />
+          </div>
+          <div class="form-field">
+            <input
+              class="form-control"
+              type="text"
+              name="zipcode"
+              placeholder="Zip code.."
+            />
+          </div>
+          <div class="form-field">
+            <input
+              class="form-control"
+              type="text"
+              name="country"
+              placeholder="Zip code.."
+            />
+          </div>
+        </div>
+        <div id="payment-info">
+          <hr />
+          <p>Payment Information:</p>
+          <hr />
+          <div class="form-field w-100 pt-3">
+            <div id="card-element">
+              <!-- A Stripe Element will be inserted here. -->
+            </div>
+
+            <!-- Used to display form errors. -->
+            <div id="card-errors" role="alert"></div>
+          </div>
+        </div>
+
+        <hr />
+        <input
+          id="make-payment"
+          class="btn btn-success btn-block"
+          type="submit"
+          value="Continue"
+        />
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="box-element">
+      <a class="btn btn-outline-dark" href="{% url 'cart' %}"
+        >&#x2190; Back to Cart</a
+      >
+      <hr />
+      <h3>Order Summary</h3>
+      <hr />
+
+      {% for item in items %}
+
+      <div class="cart-row">
+        <div style="flex: 2">
+          <img class="row-image" src="{{item.product.imageURL}}" />
+        </div>
+        <div style="flex: 2"><p>{{item.product.name}}</p></div>
+        <div style="flex: 1"><p>${{item.product.price|floatformat:2}}</p></div>
+        <div style="flex: 1"><p>x{{item.quantity}}</p></div>
+      </div>
+
+      {% endfor %}
+      <h5>Items: {{order.get_cart_items}}</h5>
+      <h5>Total: ${{order.get_cart_total}}</h5>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+  // Create a Stripe client.
+  //var stripe = Stripe("pk_test_oTFjadXmj6O7I0RSwvBgZOfF");
+  var stripe = Stripe(
+    "pk_test_51BbYtuJMWp5Chnxj6AsBUIF1FiwRyqqh8pM6pHVbM91gIPxewqWjcXszmF9ydaVMsMjquCzEuXKjrHJRAfc4YWyX00kxt13v9l"
+  );
+
+  // Create an instance of Elements.
+  var elements = stripe.elements();
+
+  // Custom styling can be passed to options when creating an Element.
+  // (Note that this demo uses a wider set of styles than the guide below.)
+  var style = {
+    base: {
+      color: "#32325d",
+      fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+      fontSmoothing: "antialiased",
+      fontSize: "16px",
+      "::placeholder": {
+        color: "#aab7c4",
+      },
+    },
+    invalid: {
+      color: "#fa755a",
+      iconColor: "#fa755a",
+    },
+  };
+
+  // Create an instance of the card Element.
+  var card = elements.create("card", { style: style });
+
+  // Add an instance of the card Element into the `card-element` <div>.
+  card.mount("#card-element");
+
+  // Handle real-time validation errors from the card Element.
+  card.on("change", function (event) {
+    var displayError = document.getElementById("card-errors");
+    if (event.error) {
+      displayError.textContent = event.error.message;
+    } else {
+      displayError.textContent = "";
+    }
+  });
+
+  // Handle form submission.
+  var form = document.getElementById("form");
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    stripe.createToken(card).then(function (result) {
+      if (result.error) {
+        // Inform the user if there was an error.
+        var errorElement = document.getElementById("card-errors");
+        errorElement.textContent = result.error.message;
+      } else {
+        // Send the token to your server.
+        stripeTokenHandler(result.token);
+      }
+    });
+  });
+
+  // Submit the form with the token ID.
+  function stripeTokenHandler(token) {
+    // Insert the token ID into the form so it gets submitted to the server
+    var form = document.getElementById("form");
+    var hiddenInput = document.createElement("input");
+    hiddenInput.setAttribute("type", "hidden");
+    hiddenInput.setAttribute("name", "stripeToken");
+    hiddenInput.setAttribute("value", token.id);
+    form.appendChild(hiddenInput);
+
+    // Submit the form
+    form.submit();
+  }
+</script>
+<script type="text/javascript">
+  var shipping = "{{order.shipping}}";
+  var total = "{{order.get_cart_total}}";
+
+  if (shipping == "False") {
+    document.getElementById("shipping-info").innerHTML = "";
+  }
+
+  if (user != "AnonymousUser") {
+    document.getElementById("user-info").innerHTML = "";
+  }
+
+  if (shipping == "False" && user != "AnonymousUser") {
+    //hide entire form if user is logged in and shipping is false
+    document.getElementById("form-wrapper").classList.add("hidden");
+    // show the payment to logged in user if he want to buy item that dosen't require shipping
+    document.getElementById("payment-info").classList.remove("hidden");
+  }
+
+  var form = document.getElementById("form");
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    console.log("Form Submitted");
+  });
+</script>
+{% endblock content %}
